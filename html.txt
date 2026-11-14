@@ -1,0 +1,1309 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta property="og:title" content="Desmos | Beautiful free math.">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Desmos | Testing</title>
+<link rel="icon" type="image/png" href="https://www.desmos.com/apple-touch-icon.png">
+
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: #070810;
+    color: white;
+    font-family: Arial, sans-serif;
+    height: 100vh;
+    overflow: hidden;
+}
+
+#stars {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.browser {
+    position: relative;
+    z-index: 2;
+}
+
+/* EXAMPLE.COM OVERLAY */
+
+#defaultOverlay {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: white;
+    z-index: 99999;
+    display: block;
+    pointer-events: auto;
+}
+
+#defaultOverlay.hidden {
+    display: none;
+}
+
+/* TAB BAR */
+
+.tabbar {
+    height: 43px;
+    display: flex;
+    align-items: center;
+    padding: 5px 10px 0;
+    background: #090a12;
+    border-bottom: 1px solid #242535;
+    gap: 7px;
+}
+
+.tab-list {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    min-width: 0;
+}
+
+.tab-list::-webkit-scrollbar {
+    display: none;
+}
+
+.tab {
+    height: 33px;
+    width: 175px;
+    min-width: 100px;
+    max-width: 210px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 0 11px;
+    background: #141521;
+    border: 1px solid #292a3b;
+    border-bottom: none;
+    border-radius: 9px 9px 0 0;
+    color: #999bad;
+    cursor: pointer;
+    font-size: 12px;
+    flex-shrink: 0;
+    transition: background .15s;
+}
+
+.tab:hover {
+    background: #1b1c2a;
+    color: white;
+}
+
+.tab.active {
+    background: #202130;
+    color: white;
+    border-color: #393a4d;
+}
+
+.tab-title {
+    flex: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.tab-close {
+    border: none;
+    background: transparent;
+    color: #9293a5;
+    font-size: 17px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tab-close:hover {
+    background: #38394b;
+    color: white;
+}
+
+.new-tab {
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: #aaa;
+    font-size: 23px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.new-tab:hover {
+    background: #242536;
+    color: white;
+}
+
+/* NAVIGATION */
+
+.navigation {
+    height: 52px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 15px;
+    background: #10111b;
+    border-bottom: 1px solid #282939;
+}
+
+.nav-button {
+    border: none;
+    background: transparent;
+    color: #bbb;
+    font-size: 23px;
+    cursor: pointer;
+}
+
+.nav-button:hover {
+    color: white;
+}
+
+.address {
+    flex: 1;
+    height: 33px;
+    background: #202130;
+    border: 1px solid #393a4d;
+    border-radius: 20px;
+    color: white;
+    padding: 0 15px;
+    outline: none;
+}
+
+.address:focus {
+    border-color: #7779c5;
+}
+
+/* PAGE CONTENT */
+
+main {
+    position: absolute;
+    inset: 95px 0 0;
+}
+
+.homepage {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 28px;
+}
+
+.logo {
+    font-size: 70px;
+    letter-spacing: -4px;
+    font-weight: bold;
+    text-shadow: 0 0 35px #7777bd55;
+}
+
+.search-box {
+    width: min(550px, 85%);
+    height: 58px;
+    background: #191a28;
+    border: 1px solid #48495d;
+    border-radius: 15px;
+    display: flex;
+    align-items: center;
+    padding: 0 18px;
+}
+
+.search-box input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: white;
+    font-size: 16px;
+}
+
+/* GAMES BUTTON */
+
+.games-button {
+    position: fixed;
+    top: 108px;
+    right: 20px;
+    background: transparent;
+    border: none;
+    color: #aaa;
+    font-size: 13px;
+    cursor: pointer;
+    z-index: 10;
+}
+
+.games-button:hover {
+    color: white;
+}
+
+.viewer {
+    display: none;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: white;
+    overflow: auto;
+    color: black;
+}
+
+#status {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #aaa;
+    text-align: center;
+    width: 90%;
+    z-index: 3;
+    font-size: 14px;
+}
+
+@media (max-width: 600px) {
+    .tab {
+        width: 130px;
+    }
+
+    .navigation {
+        gap: 8px;
+        padding: 0 9px;
+    }
+
+    .logo {
+        font-size: 55px;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<!-- DEFAULT EXAMPLE.COM SCREEN -->
+
+<iframe
+    id="defaultOverlay"
+    src="https://www.desmos.com/testing/ohio/scientific"
+    title="Default screen">
+</iframe>
+
+<canvas id="stars"></canvas>
+
+<div class="browser">
+
+    <!-- TABS -->
+    <div class="tabbar">
+        <div class="tab-list" id="tabList"></div>
+        <button class="new-tab" onclick="createTab()" title="New tab">+</button>
+    </div>
+
+    <!-- NAVIGATION -->
+    <div class="navigation">
+        <button class="nav-button" onclick="back()" title="Back">‹</button>
+        <button class="nav-button" onclick="forward()" title="Forward">›</button>
+        <button class="nav-button" onclick="reload()" title="Reload">⟳</button>
+
+        <input
+            id="address"
+            class="address"
+            placeholder="Search or enter website"
+            onkeydown="if(event.key==='Enter')navigate()"
+        >
+    </div>
+
+</div>
+
+<main>
+
+    <section class="homepage" id="homepage">
+        <button id="gamesButton" class="games-button" type="button">Games</button>
+
+        <div class="logo">Nebula</div>
+
+        <div class="search-box">
+            <input
+                id="search"
+                placeholder="Search or enter website"
+                onkeydown="if(event.key==='Enter')navigate()"
+            >
+        </div>
+    </section>
+
+    <div id="status"></div>
+    <div id="viewerContainer"></div>
+
+</main>
+
+<script>
+
+/* BACKEND */
+
+const BACKEND =
+"https://script.google.com/a/macros/jalsd.org/s/AKfycbz6R3orkEezy8BN6OYXXYR14GT-9AO3tXhbsgQbNFY1V-QrQatdu1brouSXqzaW3geW3A/exec";
+
+
+/* AUTHORIZED TEST SITE */
+
+// All websites are now allowed.
+
+
+/* OVERLAY SYSTEM */
+
+const defaultOverlay = document.getElementById("defaultOverlay");
+
+let nebulaVisible = false;
+
+function showNebula() {
+    nebulaVisible = true;
+    defaultOverlay.classList.add("hidden");
+}
+
+function showDefaultOverlay() {
+    nebulaVisible = false;
+    defaultOverlay.classList.remove("hidden");
+}
+
+/* CTRL + Q TOGGLE */
+
+document.addEventListener("keydown", function(event) {
+
+    if (
+        event.ctrlKey &&
+        event.key.toLowerCase() === "q" &&
+        !event.altKey &&
+        !event.metaKey
+    ) {
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (nebulaVisible) {
+            showDefaultOverlay();
+        } else {
+            showNebula();
+        }
+    }
+
+});
+
+/* RETURN TO OVERLAY WHEN LEAVING NEBULA TAB */
+
+document.addEventListener("visibilitychange", function() {
+
+    if (document.hidden) {
+        showDefaultOverlay();
+    }
+
+});
+
+/* ALSO HANDLE WINDOW FOCUS CHANGES */
+
+window.addEventListener("blur", function() {
+    setTimeout(() => {
+        if (document.activeElement && document.activeElement.tagName === "IFRAME") {
+            return;
+        }
+        showDefaultOverlay();
+    }, 100);
+});
+
+
+/* TAB SYSTEM */
+
+let tabs = [];
+let activeTabId = null;
+let nextTabId = 1;
+
+function getActiveTab() {
+    return tabs.find(tab => tab.id === activeTabId);
+}
+
+function createTab() {
+    const id = nextTabId++;
+
+    const frame = document.createElement("iframe");
+    frame.className = "viewer";
+
+    /*
+       LINK NAVIGATION
+
+       All supported links load inside the current proxy tab.
+    */
+
+    frame.addEventListener("load", () => {
+
+        try {
+
+            const pageDocument = frame.contentDocument;
+
+            if (!pageDocument) return;
+
+            pageDocument.addEventListener("click", event => {
+
+                const target = event.target;
+
+                const link = target && typeof target.closest === "function"
+                    ? target.closest("a")
+                    : null;
+
+                if (!link) return;
+
+                event.preventDefault();
+                event.stopPropagation();
+                event.stopImmediatePropagation();
+
+                const tab = tabs.find(item => item.frame === frame);
+
+                if (!tab || !tab.url) return;
+
+                try {
+
+                    const destination = new URL(
+                        link.href,
+                        tab.url
+                    );
+
+                    if (destination.protocol !== "https:") {
+                        tab.error = "Only HTTPS websites are supported.";
+
+                        if (tab.id === activeTabId) {
+                            updateActiveView();
+                        }
+
+                        return;
+                    }
+
+                    loadURL(tab, destination.href, true);
+
+                } catch (error) {
+
+                    tab.error = "Invalid link.";
+
+                    if (tab.id === activeTabId) {
+                        updateActiveView();
+                    }
+                }
+
+            }, true);
+
+        } catch(error) {
+            // Ignore inaccessible frame documents.
+        }
+
+    });
+
+    document.getElementById("viewerContainer").appendChild(frame);
+
+    const tab = {
+        id,
+        title: "New Tab",
+        url: "",
+        html: "",
+        history: [],
+        historyIndex: -1,
+        loading: false,
+        error: "",
+        requestId: 0,
+        frame
+    };
+
+    tabs.push(tab);
+
+    switchTab(id);
+    renderTabs();
+
+    return tab;
+}
+
+function switchTab(id) {
+    activeTabId = id;
+
+    const tab = getActiveTab();
+
+    if (!tab) return;
+
+    tabs.forEach(t => {
+        t.frame.style.display =
+            t.id === id && t.html ? "block" : "none";
+    });
+
+    document.getElementById("address").value =
+        tab.url || "";
+
+    updateActiveView();
+    renderTabs();
+}
+
+function renderTabs() {
+    const tabList = document.getElementById("tabList");
+
+    tabList.innerHTML = "";
+
+    tabs.forEach(tab => {
+
+        const tabElement = document.createElement("div");
+
+        tabElement.className =
+            "tab" + (tab.id === activeTabId ? " active" : "");
+
+        const title = document.createElement("span");
+        title.className = "tab-title";
+        title.textContent = tab.title;
+
+        const close = document.createElement("button");
+        close.className = "tab-close";
+        close.textContent = "×";
+
+        close.onclick = event => {
+            event.stopPropagation();
+            closeTab(tab.id);
+        };
+
+        tabElement.appendChild(title);
+        tabElement.appendChild(close);
+
+        tabElement.onclick = () => switchTab(tab.id);
+
+        tabList.appendChild(tabElement);
+    });
+}
+
+function closeTab(id) {
+    const index = tabs.findIndex(tab => tab.id === id);
+
+    if (index === -1) return;
+
+    tabs[index].frame.remove();
+    tabs.splice(index, 1);
+
+    if (activeTabId === id) {
+
+        if (tabs.length) {
+            switchTab(tabs[Math.max(0, index - 1)].id);
+        } else {
+            activeTabId = null;
+            document.getElementById("address").value = "";
+            document.getElementById("viewerContainer").innerHTML = "";
+            document.getElementById("homepage").style.display = "flex";
+            document.getElementById("status").textContent = "";
+        }
+    }
+
+    renderTabs();
+}
+
+
+/* FIXED: DISPLAY LOADING AND ERROR STATES */
+
+function updateActiveView() {
+    const tab = getActiveTab();
+    const homepage = document.getElementById("homepage");
+    const status = document.getElementById("status");
+
+    // Show the complete homepage when there is no tab
+    // or when the active tab is a fresh, empty new tab.
+    if (!tab || !tab.url) {
+        homepage.style.display = "flex";
+        status.textContent = "";
+
+        tabs.forEach(t => {
+            t.frame.style.display = "none";
+        });
+
+        return;
+    }
+
+    homepage.style.display = "none";
+
+    tabs.forEach(t => {
+        t.frame.style.display =
+            t.id === activeTabId && t.html ? "block" : "none";
+    });
+
+    if (tab.error) {
+        status.textContent = tab.error;
+        return;
+    }
+
+    status.textContent =
+        tab.loading ? "Loading..." : "";
+}
+
+
+
+function loadURL(tab, url, addHistory = true) {
+    if (!tab) return;
+
+    tab.url = url;
+    tab.error = "";
+    tab.loading = true;
+    tab.html = "";
+
+    if (addHistory) {
+        tab.history = tab.history.slice(0, tab.historyIndex + 1);
+        tab.history.push(url);
+        tab.historyIndex++;
+    }
+
+    if (tab.id === activeTabId) {
+        document.getElementById("address").value = url;
+        updateActiveView();
+    }
+
+    const requestId = ++tab.requestId;
+
+    /* JSONP BACKEND REQUEST */
+
+    const callbackName =
+        "nebulaCallback_" + tab.id + "_" + requestId;
+
+    const script = document.createElement("script");
+
+    let received = false;
+    let timeoutId = null;
+
+    function cleanup() {
+        if (timeoutId !== null) {
+            clearTimeout(timeoutId);
+            timeoutId = null;
+        }
+
+        delete window[callbackName];
+        script.remove();
+    }
+
+    function showError(message) {
+        cleanup();
+
+        if (requestId !== tab.requestId) return;
+
+        tab.loading = false;
+        tab.error = "Unable to load this website: " + message;
+
+        console.error("Nebula proxy error:", message);
+
+        if (tab.id === activeTabId) {
+            updateActiveView();
+        }
+    }
+
+    window[callbackName] = function(data) {
+        received = true;
+        cleanup();
+
+        if (requestId !== tab.requestId) return;
+
+        if (!data || !data.success || !data.html) {
+            showError(
+                data && data.error
+                    ? data.error
+                    : "No HTML returned."
+            );
+            return;
+        }
+
+        tab.html = data.html;
+        tab.title = data.title || tab.title;
+        tab.loading = false;
+        tab.error = "";
+        tab.frame.srcdoc = data.html;
+
+        if (tab.id === activeTabId) {
+            updateActiveView();
+            renderTabs();
+        }
+    };
+
+    script.onerror = function() {
+        showError("Could not contact the backend.");
+    };
+
+    script.onload = function() {
+        if (!received) {
+            showError("The backend did not return a valid response.");
+        }
+    };
+
+    timeoutId = setTimeout(function() {
+        if (!received) {
+            showError("The request timed out.");
+        }
+    }, 30000);
+
+    script.src =
+        BACKEND +
+        "?url=" + encodeURIComponent(url) +
+        "&callback=" + encodeURIComponent(callbackName);
+
+    document.head.appendChild(script);
+}
+
+
+function navigate() {
+    const input =
+        document.getElementById("address").value.trim() ||
+        document.getElementById("search").value.trim();
+
+    if (!input) return;
+
+    showNebula();
+
+    let url;
+
+    if (input.includes(".") && !input.includes(" ")) {
+        url = input.startsWith("http")
+            ? input
+            : "https://" + input;
+    } else {
+        url = "https://www.bing.com/search?q=" +
+            encodeURIComponent(input);
+    }
+
+    let tab = getActiveTab();
+
+    if (!tab) {
+        tab = createTab();
+    }
+
+    loadURL(tab, url);
+}
+
+function back() {
+    const tab = getActiveTab();
+
+    if (!tab || tab.historyIndex <= 0) return;
+
+    tab.historyIndex--;
+    loadURL(tab, tab.history[tab.historyIndex], false);
+}
+
+function forward() {
+    const tab = getActiveTab();
+
+    if (!tab || tab.historyIndex >= tab.history.length - 1) return;
+
+    tab.historyIndex++;
+    loadURL(tab, tab.history[tab.historyIndex], false);
+}
+
+function reload() {
+    const tab = getActiveTab();
+
+    if (!tab || !tab.url) return;
+
+    loadURL(tab, tab.url, false);
+}
+
+
+/* STARS BACKGROUND */
+
+const canvas = document.getElementById("stars");
+const ctx = canvas.getContext("2d");
+
+let stars = [];
+
+let mouseX = -1000;
+let mouseY = -1000;
+
+function resizeStars() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    stars = [];
+
+    for (let i = 0; i < 150; i++) {
+        stars.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            size: Math.random() * 1.5 + 0.3,
+            speed: Math.random() * 0.8 + 0.2,
+            drift: (Math.random() - 0.5) * 0.5,
+            offsetX: 0,
+            offsetY: 0,
+            twinkle: Math.random() * Math.PI * 2,
+            twinkleSpeed: Math.random() * 0.04 + 0.01
+        });
+    }
+}
+
+window.addEventListener("mousemove", function(event) {
+    mouseX = event.clientX;
+    mouseY = event.clientY;
+});
+
+window.addEventListener("mouseout", function(event) {
+    if (!event.relatedTarget) {
+        mouseX = -1000;
+        mouseY = -1000;
+    }
+});
+
+function drawStars() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw subtle constellation lines near the mouse.
+    for (let i = 0; i < stars.length; i++) {
+        const starA = stars[i];
+
+        const ax = starA.x + starA.offsetX;
+        const ay = starA.y + starA.offsetY;
+
+        const mouseDistance = Math.hypot(ax - mouseX, ay - mouseY);
+
+        if (mouseDistance > 150) continue;
+
+        let connections = 0;
+
+        for (let j = i + 1; j < stars.length; j++) {
+            const starB = stars[j];
+
+            const bx = starB.x + starB.offsetX;
+            const by = starB.y + starB.offsetY;
+
+            const distance = Math.hypot(ax - bx, ay - by);
+            const midpointX = (ax + bx) / 2;
+            const midpointY = (ay + by) / 2;
+            const midpointMouseDistance = Math.hypot(
+                midpointX - mouseX,
+                midpointY - mouseY
+            );
+
+            if (distance < 105 && midpointMouseDistance < 150) {
+                const alpha = (1 - distance / 105) * 0.25;
+
+                ctx.beginPath();
+                ctx.moveTo(ax, ay);
+                ctx.lineTo(bx, by);
+                ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+                ctx.lineWidth = 0.7;
+                ctx.stroke();
+
+                connections++;
+
+                if (connections >= 2) break;
+            }
+        }
+    }
+
+    stars.forEach(star => {
+
+        // Move stars away from the mouse.
+        const starX = star.x + star.offsetX;
+        const starY = star.y + star.offsetY;
+
+        const dx = starX - mouseX;
+        const dy = starY - mouseY;
+        const distance = Math.hypot(dx, dy);
+
+        if (distance < 130 && distance > 0) {
+            const force = (130 - distance) / 130;
+
+            star.offsetX += (dx / distance) * force * 2.5;
+            star.offsetY += (dy / distance) * force * 2.5;
+        }
+
+        // Smoothly return stars to their normal paths.
+        star.offsetX *= 0.92;
+        star.offsetY *= 0.92;
+
+        // Draw twinkling stars.
+        star.twinkle += star.twinkleSpeed;
+
+        ctx.fillStyle = "white";
+        ctx.globalAlpha = 0.4 + Math.sin(star.twinkle) * 0.3;
+
+        ctx.beginPath();
+        ctx.arc(
+            star.x + star.offsetX,
+            star.y + star.offsetY,
+            star.size,
+            0,
+            Math.PI * 2
+        );
+        ctx.fill();
+
+        ctx.globalAlpha = 1;
+
+        // Fall in random patterns.
+        star.y += star.speed;
+        star.x += star.drift;
+
+        // Wrap stars around the screen.
+        if (star.y > canvas.height + 5) {
+            star.y = -5;
+            star.x = Math.random() * canvas.width;
+        }
+
+        if (star.x < -5) {
+            star.x = canvas.width + 5;
+        }
+
+        if (star.x > canvas.width + 5) {
+            star.x = -5;
+        }
+
+    });
+
+    requestAnimationFrame(drawStars);
+}
+
+window.addEventListener("resize", resizeStars);
+
+resizeStars();
+drawStars();
+
+
+/* GAMES PAGE */
+
+const gamesPageHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 25px;
+    background: #070810;
+    color: white;
+    font-family: Arial, sans-serif;
+}
+
+.games-grid {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-rows: repeat(5, 150px);
+    gap: 16px;
+}
+
+.game-card {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    overflow: visible;
+    cursor: pointer;
+    color: white;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: opacity .15s;
+}
+
+.game-card:hover {
+    opacity: .8;
+}
+
+.game-card img {
+    width: 100%;
+    height: 110px;
+    object-fit: contain;
+}
+
+.game-card span {
+    margin-top: 4px;
+    font-size: 11px;
+}
+
+@media(max-width: 700px) {
+    .games-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-rows: auto;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<div class="games-grid">
+
+<!-- Placeholder 1 (code below) -->
+<button class="game-card" data-game-index="0" data-game-url="https://funny-school.github.io/b/backrooms/">
+<img src="https://funny-school.github.io/imagesGame/backrooms.png">
+<span>Backrooms</span>
+</button>
+
+<!-- Placeholder 2 (code below) -->
+<button class="game-card" data-game-index="1" data-game-url="https://funny-school.github.io/b/backrooms2d/">
+<img src="https://funny-school.github.io/imagesGame/backrooms2d.png">
+<span>Backrooms 2D</span>
+</button>
+
+<!-- Placeholder 3 -->
+<button type="button" class="game-card" data-game-index="2" data-game-url="https://sans-simulator.github.io/c2-sans-fight/">
+  <img src="https://raw.githubusercontent.com/4ru1n/4ru1n.github.io/refs/heads/main/images/unnamed%20(3).png" alt="">
+  <span>Bad Time Simulator</span>
+</button>
+
+<!-- Placeholder 2 (code below) -->
+<button class="game-card" data-game-index="3" data-game-url="https://sudoku-online.github.io/a5/basketball-stars/">
+<img src="https://doodlebaseballplay.com/assets/upload/doodle-baseball/webp/basketball-stars.webp">
+<span>Basketball Stars</span>
+</button>
+
+
+<!-- Placeholder 5 (code below) -->
+<button class="game-card" data-game-index="4" data-game-url="https://example.com/">
+<img src="https://www.desmos.com/apple-touch-icon.png">
+<span>Placeholder 5</span>
+</button>
+
+<!-- Placeholder 6 (code below) -->
+<button class="game-card" data-game-index="5" data-game-url="https://example.com/">
+<img src="https://www.desmos.com/apple-touch-icon.png">
+<span>Placeholder 6</span>
+</button>
+
+<!-- Placeholder 7 (code below) -->
+<button class="game-card" data-game-index="6" data-game-url="https://example.com/">
+<img src="https://www.desmos.com/apple-touch-icon.png">
+<span>Placeholder 7</span>
+</button>
+
+<!-- Placeholder 8 (code below) -->
+<button class="game-card" data-game-index="7" data-game-url="https://example.com/">
+<img src="https://www.desmos.com/apple-touch-icon.png">
+<span>Placeholder 8</span>
+</button>
+
+<!-- Placeholder 9 (code below) -->
+<button class="game-card" data-game-index="8" data-game-url="https://example.com/">
+<img src="https://www.desmos.com/apple-touch-icon.png">
+<span>Placeholder 9</span>
+</button>
+
+<!-- Placeholder 10 (code below) -->
+<button class="game-card" data-game-index="9" data-game-url="https://example.com/">
+<img src="https://www.desmos.com/apple-touch-icon.png">
+<span>Placeholder 10</span>
+</button>
+
+<!-- Placeholder 11 (code below) -->
+<button class="game-card" data-game-index="10" data-game-url="https://example.com/">
+<img src="https://www.desmos.com/apple-touch-icon.png">
+<span>Placeholder 11</span>
+</button>
+
+<!-- Placeholder 12 (code below) -->
+<button class="game-card" data-game-index="11" data-game-url="https://example.com/">
+<img src="https://www.desmos.com/apple-touch-icon.png">
+<span>Placeholder 12</span>
+</button>
+
+<!-- Placeholder 13 (code below) -->
+<button class="game-card" data-game-index="12" data-game-url="https://example.com/">
+<img src="https://www.desmos.com/apple-touch-icon.png">
+<span>Placeholder 13</span>
+</button>
+
+<!-- Placeholder 14 (code below) -->
+<button class="game-card" data-game-index="13" data-game-url="https://example.com/">
+<img src="https://www.desmos.com/apple-touch-icon.png">
+<span>Placeholder 14</span>
+</button>
+
+<!-- Placeholder 15 (code below) -->
+<button class="game-card" data-game-index="14" data-game-url="https://example.com/">
+<img src="https://www.desmos.com/apple-touch-icon.png">
+<span>Placeholder 15</span>
+</button>
+
+<!-- Placeholder 16 (code below) -->
+<button class="game-card" data-game-index="15" data-game-url="https://example.com/">
+<img src="https://www.desmos.com/apple-touch-icon.png">
+<span>Placeholder 16</span>
+</button>
+
+<!-- Placeholder 17 (code below) -->
+<button class="game-card" data-game-index="16" data-game-url="https://example.com/">
+<img src="https://www.desmos.com/apple-touch-icon.png">
+<span>Placeholder 17</span>
+</button>
+
+<!-- Placeholder 18 (code below) -->
+<button class="game-card" data-game-index="17" data-game-url="https://example.com/">
+<img src="https://www.desmos.com/apple-touch-icon.png">
+<span>Placeholder 18</span>
+</button>
+
+<!-- Placeholder 19 (code below) -->
+<button class="game-card" data-game-index="18" data-game-url="https://example.com/">
+<img src="https://www.desmos.com/apple-touch-icon.png">
+<span>Placeholder 19</span>
+</button>
+
+<!-- Placeholder 20 (code below) -->
+<button class="game-card" data-game-index="19" data-game-url="https://example.com/">
+<img src="https://www.desmos.com/apple-touch-icon.png">
+<span>Placeholder 20</span>
+</button>
+
+<!-- Placeholder 21 (code below) -->
+<button class="game-card" data-game-index="20" data-game-url="https://example.com/">
+<img src="https://www.desmos.com/apple-touch-icon.png">
+<span>Placeholder 21</span>
+</button>
+
+<!-- Placeholder 22 (code below) -->
+<button class="game-card" data-game-index="21" data-game-url="https://example.com/">
+<img src="https://www.desmos.com/apple-touch-icon.png">
+<span>Placeholder 22</span>
+</button>
+
+<!-- Placeholder 23 (code below) -->
+<button class="game-card" data-game-index="22" data-game-url="https://example.com/">
+<img src="https://www.desmos.com/apple-touch-icon.png">
+<span>Placeholder 23</span>
+</button>
+
+<!-- Placeholder 24 (code below) -->
+<button class="game-card" data-game-index="23" data-game-url="https://example.com/">
+<img src="https://www.desmos.com/apple-touch-icon.png">
+<span>Placeholder 24</span>
+</button>
+
+<!-- Placeholder 25 (code below) -->
+<button class="game-card" data-game-index="24" data-game-url="https://example.com/">
+<img src="https://www.desmos.com/apple-touch-icon.png">
+<span>Placeholder 25</span>
+</button>
+
+<!-- Placeholder 26 (code below) -->
+<button class="game-card" data-game-index="25" data-game-url="https://example.com/">
+<img src="https://www.desmos.com/apple-touch-icon.png">
+<span>Placeholder 26</span>
+</button>
+
+<!-- Placeholder 27 (code below) -->
+<button class="game-card" data-game-index="26" data-game-url="https://example.com/">
+<img src="https://www.desmos.com/apple-touch-icon.png">
+<span>Placeholder 27</span>
+</button>
+
+<!-- Placeholder 28 (code below) -->
+<button class="game-card" data-game-index="27" data-game-url="https://example.com/">
+<img src="https://www.desmos.com/apple-touch-icon.png">
+<span>Placeholder 28</span>
+</button>
+
+<!-- Placeholder 29 (code below) -->
+<button class="game-card" data-game-index="28" data-game-url="https://example.com/">
+<img src="https://www.desmos.com/apple-touch-icon.png">
+<span>Placeholder 29</span>
+</button>
+
+<!-- Placeholder 30 (code below) -->
+<button class="game-card" data-game-index="29" data-game-url="https://example.com/">
+<img src="https://www.desmos.com/apple-touch-icon.png">
+<span>Placeholder 30</span>
+</button>
+
+</div>
+</body>
+</html>
+`;
+
+
+/* NEBULA GAME TABS */
+
+/* GAMES PAGE OPENS IN ITS OWN NEBULA TAB */
+
+function openGamesTab() {
+    const tab = createTab();
+
+    tab.title = "Games";
+    tab.url = "nebula://games";
+    tab.html = gamesPageHTML;
+
+    // Listen before loading srcdoc so the first load is not missed.
+    tab.frame.addEventListener("load", function onGamesPageLoad() {
+        let pageDocument;
+
+        try {
+            pageDocument = tab.frame.contentDocument;
+        } catch (error) {
+            return;
+        }
+
+        if (!pageDocument || pageDocument.documentElement.dataset.gamesReady) {
+            return;
+        }
+
+        pageDocument.documentElement.dataset.gamesReady = "true";
+
+        // One delegated handler covers all 30 placeholders.
+        pageDocument.addEventListener("click", function(event) {
+            const card = event.target.closest(".game-card");
+            if (!card) return;
+
+            const gameURL = card.dataset.gameUrl;
+            const gameName = card.querySelector("span")?.textContent || "Game";
+
+            if (!gameURL) return;
+
+            openGameInNebulaTab(gameURL, gameName);
+        });
+    });
+
+    tab.frame.srcdoc = gamesPageHTML;
+
+    // Re-select after setting the tab data so the first load is not missed.
+    switchTab(tab.id);
+    document.getElementById("address").value = "nebula://games";
+    renderTabs();
+}
+
+
+/* OPEN A GAME IN A NEW NEBULA TAB */
+
+function openGameInNebulaTab(gameURL, gameName) {
+    const gameTab = createTab();
+
+    gameTab.title = gameName;
+    gameTab.url = "nebula://games";
+    gameTab.gameURL = gameURL;
+    gameTab.html = "game";
+
+    // Load the actual game in this Nebula tab's iframe.
+    gameTab.frame.src = gameURL;
+
+    // Re-select after setting the tab data. The URL bar stays nebula://games.
+    switchTab(gameTab.id);
+    document.getElementById("address").value = "nebula://games";
+    renderTabs();
+}
+
+const gamesButton = document.getElementById("gamesButton");
+gamesButton.addEventListener("click", openGamesTab);
+
+</script>
+</body>
+</html>
