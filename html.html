@@ -1276,6 +1276,28 @@ function openGamesTab() {
 
     tab.frame.srcdoc = gamesPageHTML;
 
+tab.frame.addEventListener("load", function() {
+    const pageDocument = tab.frame.contentDocument;
+    if (!pageDocument) return;
+
+    const gamesGrid = pageDocument.querySelector(".games-grid");
+    if (!gamesGrid) return;
+
+    const games = Array.from(gamesGrid.querySelectorAll(".game-card"));
+
+    games.sort((a, b) => {
+        const titleA = a.querySelector("span").textContent.trim();
+        const titleB = b.querySelector("span").textContent.trim();
+
+        return titleA.localeCompare(titleB, undefined, {
+            sensitivity: "base",
+            numeric: true
+        });
+    });
+
+    games.forEach(game => gamesGrid.appendChild(game));
+});
+
     // Re-select after setting the tab data so the first load is not missed.
     switchTab(tab.id);
     document.getElementById("address").value = "nebula://games";
