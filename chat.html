@@ -1,0 +1,1678 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nebula Chat</title>
+
+<script type="module">
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+const SUPABASE_URL = "https://ltsxfvzxcnouqnphowtl.supabase.co";
+const SUPABASE_KEY = "sb_publishable_-N81IyLzD7OivhCO0-H9gg_eX1z62w6";
+
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentUser = null;
+let myProfile = null;
+let profiles = {};
+let messages = [];
+let emojiOpen = false;
+
+const $ = id => document.getElementById(id);
+
+function escapeText(value) {
+    return String(value);
+}
+
+function showStatus(message) {
+    $("status").textContent = message;
+}
+
+async function initialize() {
+    showStatus("Connecting to Nebula...");
+
+    let { data: { session }, error } = await db.auth.getSession();
+
+    if (error) throw error;
+
+    if (!session) {
+        const result = await db.auth.signInAnonymously();
+        if (result.error) {
+            throw new Error(
+                "Could not sign in. Enable Anonymous Sign-Ins in Supabase Authentication settings. " +
+                result.error.message
+            );
+        }
+        session = result.data.session;
+    }
+
+    currentUser = session.user;
+
+    await loadProfile();
+    await loadMessages();
+
+    db.channel("nebula-messages")
+        .on("postgres_changes", {
+            event: "*",
+            schema: "public",
+            table: "messages"
+        }, loadMessages)
+        .subscribe();
+
+    showStatus("Connected to Nebula");
+    updateInterface();
+}
+
+async function loadProfile() {
+    const { data, error } = await db
+        .from("profiles")
+        .select("*")
+        .eq("user_id", currentUser.id)
+        .single();
+
+    if (error) throw error;
+
+    myProfile = data;
+}
+
+async function loadMessages() {
+    const [messageResult, profileResult] = await Promise.all([
+        db.from("messages")
+            .select("*")
+            .order("created_at", { ascending: true })
+            .limit(150),
+
+        db.from("profiles").select("*")
+    ]);
+
+    if (messageResult.error) {
+        showStatus(messageResult.error.message);
+        return;
+    }
+
+    if (profileResult.error) {
+        showStatus(profileResult.error.message);
+        return;
+    }
+
+    messages = messageResult.data || [];
+    profiles = {};
+
+    (profileResult.data || []).forEach(profile => {
+        profiles[profile.user_id] = profile;
+    });
+
+    renderMessages();
+    updateInterface();
+}
+
+function updateInterface() {
+    $("usernameLabel").textContent = myProfile.username;
+    $("roleLabel").textContent = myProfile.role.toUpperCase();
+
+    $("adminButton").hidden =
+        !["admin", "owner"].includes(myProfile.role);
+
+    $("sendButton").disabled = myProfile.banned;
+    $("messageInput").disabled = myProfile.banned;
+
+    if (myProfile.banned) {
+        showStatus("Your account has been restricted.");
+    }
+}
+
+function renderMessages() {
+    const container = $("messages");
+    container.replaceChildren();
+
+    messages.forEach(message => {
+        const profile = profiles[message.user_id];
+        const username = profile?.username || "User";
+        const isMine = message.user_id === currentUser.id;
+        const isModerator = ["admin", "owner"].includes(myProfile.role);
+
+        const wrapper = document.createElement("div");
+        wrapper.className = "message " + (isMine ? "mine" : "");
+
+        const header = document.createElement("div");
+        header.className = "message-header";
+
+        const name = document.createElement("span");
+        name.className = "message-name";
+        name.textContent = username;
+
+        if (profile?.role === "owner") {
+            name.textContent += " 👑";
+        } else if (profile?.role === "admin") {
+            name.textContent += " 🛡️";
+        }
+
+        const time = document.createElement("span");
+        time.className = "message-time";
+        time.textContent = new Date(message.created_at)
+            .toLocaleTimeString([], {
+                hour: "numeric",
+                minute: "2-digit"
+            });
+
+        header.append(name, time);
+
+        const content = document.createElement("div");
+        content.className = "message-content";
+        content.textContent = message.content;
+
+        wrapper.append(header, content);
+
+        if (message.edited_at) {
+            const edited = document.createElement("span");
+            edited.className = "edited";
+            edited.textContent = "(edited)";
+            wrapper.append(edited);
+        }
+
+        const actions = document.createElement("div");
+        actions.className = "message-actions";
+
+        if (isMine) {
+            const edit = document.createElement("button");
+            edit.textContent = "Edit";
+            edit.onclick = () => editMessage(message);
+            actions.append(edit);
+        }
+
+        if (isMine || isModerator) {
+            const remove = document.createElement("button");
+            remove.textContent = "Delete";
+            remove.onclick = () => deleteMessage(message);
+            actions.append(remove);
+        }
+
+        if (actions.children.length) {
+            wrapper.append(actions);
+        }
+
+        container.append(wrapper);
+    });
+
+    container.scrollTop = container.scrollHeight;
+}
+
+async function sendMessage() {
+    const input = $("messageInput");
+    const content = input.value.trim();
+
+    if (!content || myProfile.banned) return;
+
+    $("sendButton").disabled = true;
+
+    const { error } = await db.from("messages").insert({
+        user_id: currentUser.id,
+        content
+    });
+
+    $("sendButton").disabled = myProfile.banned;
+
+    if (error) {
+        showStatus("Message failed: " + error.message);
+        return;
+    }
+
+    input.value = "";
+    input.focus();
+    loadMessages();
+}
+
+async function editMessage(message) {
+    const updated = prompt("Edit your message:", message.content);
+
+    if (updated === null) return;
+
+    if (!updated.trim() || updated.length > 2000) {
+        alert("Messages must contain 1–2000 characters.");
+        return;
+    }
+
+    const { error } = await db.from("messages")
+        .update({ content: updated.trim() })
+        .eq("id", message.id)
+        .eq("user_id", currentUser.id);
+
+    if (error) {
+        alert(error.message);
+        return;
+    }
+
+    loadMessages();
+}
+
+async function deleteMessage(message) {
+    if (!confirm("Delete this message?")) return;
+
+    const { error } = await db.from("messages")
+        .delete()
+        .eq("id", message.id);
+
+    if (error) {
+        alert(error.message);
+        return;
+    }
+
+    loadMessages();
+}
+
+function openProfile() {
+    $("profileName").value = myProfile.username;
+    $("accountId").textContent = currentUser.id;
+    $("profileModal").hidden = false;
+}
+
+async function saveProfile() {
+    const username = $("profileName").value.trim();
+
+    if (username.length < 1 || username.length > 24) {
+        alert("Username must be between 1 and 24 characters.");
+        return;
+    }
+
+    const { error } = await db.from("profiles")
+        .update({ username })
+        .eq("user_id", currentUser.id);
+
+    if (error) {
+        alert(error.message);
+        return;
+    }
+
+    await loadProfile();
+    await loadMessages();
+
+    $("profileModal").hidden = true;
+}
+
+const emojis = [
+    "😀","😎","😂","🤣","😊","😍","🥰","😭",
+    "💀","🔥","❤️","💜","💙","👍","👎","👏",
+    "🎉","✨","🚀","👀","🤔","😴","🙏","😈",
+    "💯","🤝","🙌","🥳","🤯","😅","😏","🫡"
+];
+
+function buildEmojiPicker() {
+    const picker = $("emojiPicker");
+
+    emojis.forEach(emoji => {
+        const button = document.createElement("button");
+        button.textContent = emoji;
+        button.className = "emoji-option";
+
+        button.onclick = () => {
+            const input = $("messageInput");
+            const start = input.selectionStart;
+            const end = input.selectionEnd;
+
+            input.value =
+                input.value.slice(0, start) +
+                emoji +
+                input.value.slice(end);
+
+            input.focus();
+            input.selectionStart = input.selectionEnd =
+                start + emoji.length;
+
+            picker.hidden = true;
+        };
+
+        picker.append(button);
+    });
+}
+
+function toggleEmoji() {
+    $("emojiPicker").hidden = !$("emojiPicker").hidden;
+}
+
+function openAdmin() {
+    if (!["admin", "owner"].includes(myProfile.role)) return;
+
+    $("adminModal").hidden = false;
+    loadAdminUsers();
+}
+
+async function loadAdminUsers() {
+    const list = $("userList");
+    list.replaceChildren();
+
+    const { data, error } = await db.from("profiles")
+        .select("*")
+        .order("created_at");
+
+    if (error) {
+        list.textContent = error.message;
+        return;
+    }
+
+    data.forEach(user => {
+        const row = document.createElement("div");
+        row.className = "user-row";
+
+        const info = document.createElement("div");
+        info.className = "user-info";
+
+        const username = document.createElement("strong");
+        username.textContent = user.username;
+
+        const role = document.createElement("small");
+        role.textContent = user.role.toUpperCase() +
+            (user.banned ? " • BANNED" : "");
+
+        info.append(username, role);
+        row.append(info);
+
+        if (user.user_id === currentUser.id || user.role === "owner") {
+            const protectedLabel = document.createElement("small");
+            protectedLabel.textContent = user.user_id === currentUser.id
+                ? "You"
+                : "Protected owner";
+            row.append(protectedLabel);
+        } else {
+            if (myProfile.role === "owner") {
+                const promote = document.createElement("button");
+
+                promote.textContent = user.role === "admin"
+                    ? "Remove admin"
+                    : "Make admin";
+
+                promote.onclick = async () => {
+                    const { error } = await db.rpc("set_admin", {
+                        target_user: user.user_id,
+                        make_admin: user.role !== "admin"
+                    });
+
+                    if (error) {
+                        alert(error.message);
+                        return;
+                    }
+
+                    loadAdminUsers();
+                };
+
+                row.append(promote);
+            }
+
+            const ban = document.createElement("button");
+            ban.textContent = user.banned ? "Unban" : "Ban";
+
+            ban.onclick = async () => {
+                const { error } = await db.rpc("set_banned", {
+                    target_user: user.user_id,
+                    should_ban: !user.banned
+                });
+
+                if (error) {
+                    alert(error.message);
+                    return;
+                }
+
+                loadAdminUsers();
+            };
+
+            row.append(ban);
+        }
+
+        list.append(row);
+    });
+}
+
+$("sendButton").onclick = sendMessage;
+$("profileButton").onclick = openProfile;
+$("saveProfile").onclick = saveProfile;
+$("closeProfile").onclick = () => $("profileModal").hidden = true;
+$("emojiButton").onclick = toggleEmoji;
+$("adminButton").onclick = openAdmin;
+$("closeAdmin").onclick = () => $("adminModal").hidden = true;
+
+$("messageInput").addEventListener("keydown", event => {
+    if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        sendMessage();
+    }
+});
+
+buildEmojiPicker();
+
+initialize().catch(error => {
+    showStatus("Connection error: " + error.message);
+    console.error(error);
+});
+</script>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: #11121a;
+    color: #eeeef5;
+    font-family: Arial, sans-serif;
+    height: 100dvh;
+    overflow: hidden;
+}
+
+#app {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.topbar {
+    height: 65px;
+    background: #191a26;
+    border-bottom: 1px solid #303143;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 22px;
+    flex-shrink: 0;
+}
+
+.logo {
+    font-size: 21px;
+    font-weight: bold;
+    letter-spacing: .5px;
+    color: #b39aff;
+}
+
+.status {
+    font-size: 12px;
+    color: #9c9cad;
+}
+
+#messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.message {
+    max-width: min(75%, 650px);
+    background: #202130;
+    border: 1px solid #303143;
+    border-radius: 13px;
+    padding: 12px 15px;
+    align-self: flex-start;
+    overflow-wrap: anywhere;
+}
+
+.message.mine {
+    align-self: flex-end;
+    background: #352a58;
+    border-color: #574285;
+}
+
+.message-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 7px;
+}
+
+.message-name {
+    color: #b69cff;
+    font-size: 13px;
+    font-weight: bold;
+}
+
+.message-time {
+    color: #9292a4;
+    font-size: 11px;
+}
+
+.message-content {
+    white-space: pre-wrap;
+    line-height: 1.5;
+    font-size: 14px;
+}
+
+.edited {
+    display: block;
+    color: #9999aa;
+    font-size: 10px;
+    margin-top: 5px;
+}
+
+.message-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.message-actions button {
+    background: none;
+    border: none;
+    color: #aaa1d4;
+    cursor: pointer;
+    font-size: 11px;
+}
+
+.composer {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 15px 20px;
+    background: #191a26;
+    border-top: 1px solid #303143;
+    flex-shrink: 0;
+}
+
+.profile-button, .send-button {
+    width: 45px;
+    height: 45px;
+    flex-shrink: 0;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    font-size: 21px;
+}
+
+.profile-button {
+    background: #292a3b;
+    color: #c7b5ff;
+}
+
+.send-button {
+    background: #8060e9;
+    color: white;
+}
+
+.send-button:hover {
+    background: #9679f4;
+}
+
+.send-button:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+}
+
+.input-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+}
+
+#messageInput {
+    width: 100%;
+    height: 48px;
+    resize: none;
+    border: 1px solid #35364a;
+    outline: none;
+    background: #242535;
+    color: white;
+    border-radius: 25px;
+    padding: 14px 52px 12px 18px;
+    font: 14px Arial, sans-serif;
+}
+
+#messageInput:focus {
+    border-color: #8768ed;
+}
+
+#emojiButton {
+    position: absolute;
+    right: 14px;
+    top: 12px;
+    border: none;
+    background: transparent;
+    color: #bdb6d4;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+#emojiPicker {
+    position: absolute;
+    bottom: 60px;
+    right: 0;
+    width: 240px;
+    background: #242535;
+    border: 1px solid #45445d;
+    border-radius: 12px;
+    padding: 10px;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 5px;
+    box-shadow: 0 8px 30px #0008;
+}
+
+#emojiPicker[hidden], [hidden] {
+    display: none !important;
+}
+
+.emoji-option {
+    background: transparent;
+    border: none;
+    padding: 7px 2px;
+    font-size: 21px;
+    cursor: pointer;
+    border-radius: 6px;
+}
+
+.emoji-option:hover {
+    background: #45445d;
+}
+
+.modal {
+    position: fixed;
+    inset: 0;
+    background: #0009;
+    display: grid;
+    place-items: center;
+    z-index: 10;
+    padding: 20px;
+}
+
+.modal-box {
+    width: min(430px, 100%);
+    max-height: 85vh;
+    overflow-y: auto;
+    background: #202130;
+    border: 1px solid #414158;
+    border-radius: 16px;
+    padding: 22px;
+    box-shadow: 0 15px 60px #0009;
+}
+
+.modal-box h2 {
+    margin-top: 0;
+    color: #c0aaff;
+}
+
+.modal-box input {
+    width: 100%;
+    padding: 12px;
+    background: #141520;
+    color: white;
+    border: 1px solid #46445d;
+    border-radius: 8px;
+    margin: 10px 0;
+    outline: none;
+}
+
+.modal-box button {
+    background: #7858d9;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    margin: 4px;
+}
+
+.modal-box .secondary {
+    background: #39394b;
+}
+
+.account-id {
+    color: #9999aa;
+    font-size: 10px;
+    overflow-wrap: anywhere;
+    margin: 14px 0;
+}
+
+.user-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid #39394b;
+}
+
+.user-info {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.user-info small {
+    color: #aaa;
+    font-size: 11px;
+}
+
+#userList button {
+    font-size: 11px;
+    padding: 8px;
+}
+
+@media(max-width: 550px) {
+    .topbar {
+        padding: 0 13px;
+    }
+
+    #messages {
+        padding: 15px;
+    }
+
+    .composer {
+        padding: 10px;
+        gap: 7px;
+    }
+
+    .message {
+        max-width: 90%;
+    }
+
+    .profile-button, .send-button {
+        width: 40px;
+        height: 40px;
+    }
+}
+</style>
+</head>
+
+<body>
+<div id="app">
+
+    <header class="topbar">
+        <div class="logo">✦ Nebula Chat</div>
+        <div class="status" id="status">Connecting...</div>
+    </header>
+
+    <main id="messages"></main>
+
+    <footer class="composer">
+
+        <button class="profile-button" id="profileButton"
+            title="Edit profile">♙</button>
+
+        <div class="input-wrap">
+            <textarea id="messageInput"
+                placeholder="Type a message..."
+                maxlength="2000"></textarea>
+
+            <button id="emojiButton" title="Emojis">☺</button>
+            <div id="emojiPicker" hidden></div>
+        </div>
+
+        <button class="send-button" id="sendButton"
+            title="Send message">➤</button>
+
+    </footer>
+
+</div>
+
+<div class="modal" id="profileModal" hidden>
+    <div class="modal-box">
+        <h2>Your Profile</h2>
+
+        <label for="profileName">Display name</label>
+        <input id="profileName" maxlength="24"
+            placeholder="Choose a username">
+
+        <div class="account-id">
+            Your account ID (needed to register the owner):
+            <br>
+            <span id="accountId"></span>
+        </div>
+
+        <button id="saveProfile">Save username</button>
+        <button class="secondary" id="closeProfile">Close</button>
+    </div>
+</div>
+
+<div class="modal" id="adminModal" hidden>
+    <div class="modal-box">
+        <h2>✦ Nebula Administration</h2>
+        <p id="roleLabel"></p>
+        <div id="userList">Loading users...</div>
+        <button class="secondary" id="closeAdmin">Close</button>
+    </div>
+</div>
+
+</body>
+</html>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nebula Chat</title>
+
+<script type="module">
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+const SUPABASE_URL = "https://ltsxfvzxcnouqnphowtl.supabase.co";
+const SUPABASE_KEY = "sb_publishable_-N81IyLzD7OivhCO0-H9gg_eX1z62w6";
+
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentUser = null;
+let myProfile = null;
+let profiles = {};
+let messages = [];
+let emojiOpen = false;
+
+const $ = id => document.getElementById(id);
+
+function escapeText(value) {
+    return String(value);
+}
+
+function showStatus(message) {
+    $("status").textContent = message;
+}
+
+async function initialize() {
+    showStatus("Connecting to Nebula...");
+
+    let { data: { session }, error } = await db.auth.getSession();
+
+    if (error) throw error;
+
+    if (!session) {
+        const result = await db.auth.signInAnonymously();
+        if (result.error) {
+            throw new Error(
+                "Could not sign in. Enable Anonymous Sign-Ins in Supabase Authentication settings. " +
+                result.error.message
+            );
+        }
+        session = result.data.session;
+    }
+
+    currentUser = session.user;
+
+    await loadProfile();
+    await loadMessages();
+
+    db.channel("nebula-messages")
+        .on("postgres_changes", {
+            event: "*",
+            schema: "public",
+            table: "messages"
+        }, loadMessages)
+        .subscribe();
+
+    showStatus("Connected to Nebula");
+    updateInterface();
+}
+
+async function loadProfile() {
+    const { data, error } = await db
+        .from("profiles")
+        .select("*")
+        .eq("user_id", currentUser.id)
+        .single();
+
+    if (error) throw error;
+
+    myProfile = data;
+}
+
+async function loadMessages() {
+    const [messageResult, profileResult] = await Promise.all([
+        db.from("messages")
+            .select("*")
+            .order("created_at", { ascending: true })
+            .limit(150),
+
+        db.from("profiles").select("*")
+    ]);
+
+    if (messageResult.error) {
+        showStatus(messageResult.error.message);
+        return;
+    }
+
+    if (profileResult.error) {
+        showStatus(profileResult.error.message);
+        return;
+    }
+
+    messages = messageResult.data || [];
+    profiles = {};
+
+    (profileResult.data || []).forEach(profile => {
+        profiles[profile.user_id] = profile;
+    });
+
+    renderMessages();
+    updateInterface();
+}
+
+function updateInterface() {
+    $("usernameLabel").textContent = myProfile.username;
+    $("roleLabel").textContent = myProfile.role.toUpperCase();
+
+    $("adminButton").hidden =
+        !["admin", "owner"].includes(myProfile.role);
+
+    $("sendButton").disabled = myProfile.banned;
+    $("messageInput").disabled = myProfile.banned;
+
+    if (myProfile.banned) {
+        showStatus("Your account has been restricted.");
+    }
+}
+
+function renderMessages() {
+    const container = $("messages");
+    container.replaceChildren();
+
+    messages.forEach(message => {
+        const profile = profiles[message.user_id];
+        const username = profile?.username || "User";
+        const isMine = message.user_id === currentUser.id;
+        const isModerator = ["admin", "owner"].includes(myProfile.role);
+
+        const wrapper = document.createElement("div");
+        wrapper.className = "message " + (isMine ? "mine" : "");
+
+        const header = document.createElement("div");
+        header.className = "message-header";
+
+        const name = document.createElement("span");
+        name.className = "message-name";
+        name.textContent = username;
+
+        if (profile?.role === "owner") {
+            name.textContent += " 👑";
+        } else if (profile?.role === "admin") {
+            name.textContent += " 🛡️";
+        }
+
+        const time = document.createElement("span");
+        time.className = "message-time";
+        time.textContent = new Date(message.created_at)
+            .toLocaleTimeString([], {
+                hour: "numeric",
+                minute: "2-digit"
+            });
+
+        header.append(name, time);
+
+        const content = document.createElement("div");
+        content.className = "message-content";
+        content.textContent = message.content;
+
+        wrapper.append(header, content);
+
+        if (message.edited_at) {
+            const edited = document.createElement("span");
+            edited.className = "edited";
+            edited.textContent = "(edited)";
+            wrapper.append(edited);
+        }
+
+        const actions = document.createElement("div");
+        actions.className = "message-actions";
+
+        if (isMine) {
+            const edit = document.createElement("button");
+            edit.textContent = "Edit";
+            edit.onclick = () => editMessage(message);
+            actions.append(edit);
+        }
+
+        if (isMine || isModerator) {
+            const remove = document.createElement("button");
+            remove.textContent = "Delete";
+            remove.onclick = () => deleteMessage(message);
+            actions.append(remove);
+        }
+
+        if (actions.children.length) {
+            wrapper.append(actions);
+        }
+
+        container.append(wrapper);
+    });
+
+    container.scrollTop = container.scrollHeight;
+}
+
+async function sendMessage() {
+    const input = $("messageInput");
+    const content = input.value.trim();
+
+    if (!content || myProfile.banned) return;
+
+    $("sendButton").disabled = true;
+
+    const { error } = await db.from("messages").insert({
+        user_id: currentUser.id,
+        content
+    });
+
+    $("sendButton").disabled = myProfile.banned;
+
+    if (error) {
+        showStatus("Message failed: " + error.message);
+        return;
+    }
+
+    input.value = "";
+    input.focus();
+    loadMessages();
+}
+
+async function editMessage(message) {
+    const updated = prompt("Edit your message:", message.content);
+
+    if (updated === null) return;
+
+    if (!updated.trim() || updated.length > 2000) {
+        alert("Messages must contain 1–2000 characters.");
+        return;
+    }
+
+    const { error } = await db.from("messages")
+        .update({ content: updated.trim() })
+        .eq("id", message.id)
+        .eq("user_id", currentUser.id);
+
+    if (error) {
+        alert(error.message);
+        return;
+    }
+
+    loadMessages();
+}
+
+async function deleteMessage(message) {
+    if (!confirm("Delete this message?")) return;
+
+    const { error } = await db.from("messages")
+        .delete()
+        .eq("id", message.id);
+
+    if (error) {
+        alert(error.message);
+        return;
+    }
+
+    loadMessages();
+}
+
+function openProfile() {
+    $("profileName").value = myProfile.username;
+    $("accountId").textContent = currentUser.id;
+    $("profileModal").hidden = false;
+}
+
+async function saveProfile() {
+    const username = $("profileName").value.trim();
+
+    if (username.length < 1 || username.length > 24) {
+        alert("Username must be between 1 and 24 characters.");
+        return;
+    }
+
+    const { error } = await db.from("profiles")
+        .update({ username })
+        .eq("user_id", currentUser.id);
+
+    if (error) {
+        alert(error.message);
+        return;
+    }
+
+    await loadProfile();
+    await loadMessages();
+
+    $("profileModal").hidden = true;
+}
+
+const emojis = [
+    "😀","😎","😂","🤣","😊","😍","🥰","😭",
+    "💀","🔥","❤️","💜","💙","👍","👎","👏",
+    "🎉","✨","🚀","👀","🤔","😴","🙏","😈",
+    "💯","🤝","🙌","🥳","🤯","😅","😏","🫡"
+];
+
+function buildEmojiPicker() {
+    const picker = $("emojiPicker");
+
+    emojis.forEach(emoji => {
+        const button = document.createElement("button");
+        button.textContent = emoji;
+        button.className = "emoji-option";
+
+        button.onclick = () => {
+            const input = $("messageInput");
+            const start = input.selectionStart;
+            const end = input.selectionEnd;
+
+            input.value =
+                input.value.slice(0, start) +
+                emoji +
+                input.value.slice(end);
+
+            input.focus();
+            input.selectionStart = input.selectionEnd =
+                start + emoji.length;
+
+            picker.hidden = true;
+        };
+
+        picker.append(button);
+    });
+}
+
+function toggleEmoji() {
+    $("emojiPicker").hidden = !$("emojiPicker").hidden;
+}
+
+function openAdmin() {
+    if (!["admin", "owner"].includes(myProfile.role)) return;
+
+    $("adminModal").hidden = false;
+    loadAdminUsers();
+}
+
+async function loadAdminUsers() {
+    const list = $("userList");
+    list.replaceChildren();
+
+    const { data, error } = await db.from("profiles")
+        .select("*")
+        .order("created_at");
+
+    if (error) {
+        list.textContent = error.message;
+        return;
+    }
+
+    data.forEach(user => {
+        const row = document.createElement("div");
+        row.className = "user-row";
+
+        const info = document.createElement("div");
+        info.className = "user-info";
+
+        const username = document.createElement("strong");
+        username.textContent = user.username;
+
+        const role = document.createElement("small");
+        role.textContent = user.role.toUpperCase() +
+            (user.banned ? " • BANNED" : "");
+
+        info.append(username, role);
+        row.append(info);
+
+        if (user.user_id === currentUser.id || user.role === "owner") {
+            const protectedLabel = document.createElement("small");
+            protectedLabel.textContent = user.user_id === currentUser.id
+                ? "You"
+                : "Protected owner";
+            row.append(protectedLabel);
+        } else {
+            if (myProfile.role === "owner") {
+                const promote = document.createElement("button");
+
+                promote.textContent = user.role === "admin"
+                    ? "Remove admin"
+                    : "Make admin";
+
+                promote.onclick = async () => {
+                    const { error } = await db.rpc("set_admin", {
+                        target_user: user.user_id,
+                        make_admin: user.role !== "admin"
+                    });
+
+                    if (error) {
+                        alert(error.message);
+                        return;
+                    }
+
+                    loadAdminUsers();
+                };
+
+                row.append(promote);
+            }
+
+            const ban = document.createElement("button");
+            ban.textContent = user.banned ? "Unban" : "Ban";
+
+            ban.onclick = async () => {
+                const { error } = await db.rpc("set_banned", {
+                    target_user: user.user_id,
+                    should_ban: !user.banned
+                });
+
+                if (error) {
+                    alert(error.message);
+                    return;
+                }
+
+                loadAdminUsers();
+            };
+
+            row.append(ban);
+        }
+
+        list.append(row);
+    });
+}
+
+$("sendButton").onclick = sendMessage;
+$("profileButton").onclick = openProfile;
+$("saveProfile").onclick = saveProfile;
+$("closeProfile").onclick = () => $("profileModal").hidden = true;
+$("emojiButton").onclick = toggleEmoji;
+$("adminButton").onclick = openAdmin;
+$("closeAdmin").onclick = () => $("adminModal").hidden = true;
+
+$("messageInput").addEventListener("keydown", event => {
+    if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        sendMessage();
+    }
+});
+
+buildEmojiPicker();
+
+initialize().catch(error => {
+    showStatus("Connection error: " + error.message);
+    console.error(error);
+});
+</script>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: #11121a;
+    color: #eeeef5;
+    font-family: Arial, sans-serif;
+    height: 100dvh;
+    overflow: hidden;
+}
+
+#app {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.topbar {
+    height: 65px;
+    background: #191a26;
+    border-bottom: 1px solid #303143;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 22px;
+    flex-shrink: 0;
+}
+
+.logo {
+    font-size: 21px;
+    font-weight: bold;
+    letter-spacing: .5px;
+    color: #b39aff;
+}
+
+.status {
+    font-size: 12px;
+    color: #9c9cad;
+}
+
+#messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.message {
+    max-width: min(75%, 650px);
+    background: #202130;
+    border: 1px solid #303143;
+    border-radius: 13px;
+    padding: 12px 15px;
+    align-self: flex-start;
+    overflow-wrap: anywhere;
+}
+
+.message.mine {
+    align-self: flex-end;
+    background: #352a58;
+    border-color: #574285;
+}
+
+.message-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 7px;
+}
+
+.message-name {
+    color: #b69cff;
+    font-size: 13px;
+    font-weight: bold;
+}
+
+.message-time {
+    color: #9292a4;
+    font-size: 11px;
+}
+
+.message-content {
+    white-space: pre-wrap;
+    line-height: 1.5;
+    font-size: 14px;
+}
+
+.edited {
+    display: block;
+    color: #9999aa;
+    font-size: 10px;
+    margin-top: 5px;
+}
+
+.message-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.message-actions button {
+    background: none;
+    border: none;
+    color: #aaa1d4;
+    cursor: pointer;
+    font-size: 11px;
+}
+
+.composer {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 15px 20px;
+    background: #191a26;
+    border-top: 1px solid #303143;
+    flex-shrink: 0;
+}
+
+.profile-button, .send-button {
+    width: 45px;
+    height: 45px;
+    flex-shrink: 0;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    font-size: 21px;
+}
+
+.profile-button {
+    background: #292a3b;
+    color: #c7b5ff;
+}
+
+.send-button {
+    background: #8060e9;
+    color: white;
+}
+
+.send-button:hover {
+    background: #9679f4;
+}
+
+.send-button:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+}
+
+.input-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+}
+
+#messageInput {
+    width: 100%;
+    height: 48px;
+    resize: none;
+    border: 1px solid #35364a;
+    outline: none;
+    background: #242535;
+    color: white;
+    border-radius: 25px;
+    padding: 14px 52px 12px 18px;
+    font: 14px Arial, sans-serif;
+}
+
+#messageInput:focus {
+    border-color: #8768ed;
+}
+
+#emojiButton {
+    position: absolute;
+    right: 14px;
+    top: 12px;
+    border: none;
+    background: transparent;
+    color: #bdb6d4;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+#emojiPicker {
+    position: absolute;
+    bottom: 60px;
+    right: 0;
+    width: 240px;
+    background: #242535;
+    border: 1px solid #45445d;
+    border-radius: 12px;
+    padding: 10px;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 5px;
+    box-shadow: 0 8px 30px #0008;
+}
+
+#emojiPicker[hidden], [hidden] {
+    display: none !important;
+}
+
+.emoji-option {
+    background: transparent;
+    border: none;
+    padding: 7px 2px;
+    font-size: 21px;
+    cursor: pointer;
+    border-radius: 6px;
+}
+
+.emoji-option:hover {
+    background: #45445d;
+}
+
+.modal {
+    position: fixed;
+    inset: 0;
+    background: #0009;
+    display: grid;
+    place-items: center;
+    z-index: 10;
+    padding: 20px;
+}
+
+.modal-box {
+    width: min(430px, 100%);
+    max-height: 85vh;
+    overflow-y: auto;
+    background: #202130;
+    border: 1px solid #414158;
+    border-radius: 16px;
+    padding: 22px;
+    box-shadow: 0 15px 60px #0009;
+}
+
+.modal-box h2 {
+    margin-top: 0;
+    color: #c0aaff;
+}
+
+.modal-box input {
+    width: 100%;
+    padding: 12px;
+    background: #141520;
+    color: white;
+    border: 1px solid #46445d;
+    border-radius: 8px;
+    margin: 10px 0;
+    outline: none;
+}
+
+.modal-box button {
+    background: #7858d9;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    margin: 4px;
+}
+
+.modal-box .secondary {
+    background: #39394b;
+}
+
+.account-id {
+    color: #9999aa;
+    font-size: 10px;
+    overflow-wrap: anywhere;
+    margin: 14px 0;
+}
+
+.user-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid #39394b;
+}
+
+.user-info {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.user-info small {
+    color: #aaa;
+    font-size: 11px;
+}
+
+#userList button {
+    font-size: 11px;
+    padding: 8px;
+}
+
+@media(max-width: 550px) {
+    .topbar {
+        padding: 0 13px;
+    }
+
+    #messages {
+        padding: 15px;
+    }
+
+    .composer {
+        padding: 10px;
+        gap: 7px;
+    }
+
+    .message {
+        max-width: 90%;
+    }
+
+    .profile-button, .send-button {
+        width: 40px;
+        height: 40px;
+    }
+}
+</style>
+</head>
+
+<body>
+<div id="app">
+
+    <header class="topbar">
+        <div class="logo">✦ Nebula Chat</div>
+        <div class="status" id="status">Connecting...</div>
+    </header>
+
+    <main id="messages"></main>
+
+    <footer class="composer">
+
+        <button class="profile-button" id="profileButton"
+            title="Edit profile">♙</button>
+
+        <div class="input-wrap">
+            <textarea id="messageInput"
+                placeholder="Type a message..."
+                maxlength="2000"></textarea>
+
+            <button id="emojiButton" title="Emojis">☺</button>
+            <div id="emojiPicker" hidden></div>
+        </div>
+
+        <button class="send-button" id="sendButton"
+            title="Send message">➤</button>
+
+    </footer>
+
+</div>
+
+<div class="modal" id="profileModal" hidden>
+    <div class="modal-box">
+        <h2>Your Profile</h2>
+
+        <label for="profileName">Display name</label>
+        <input id="profileName" maxlength="24"
+            placeholder="Choose a username">
+
+        <div class="account-id">
+            Your account ID (needed to register the owner):
+            <br>
+            <span id="accountId"></span>
+        </div>
+
+        <button id="saveProfile">Save username</button>
+        <button class="secondary" id="closeProfile">Close</button>
+    </div>
+</div>
+
+<div class="modal" id="adminModal" hidden>
+    <div class="modal-box">
+        <h2>✦ Nebula Administration</h2>
+        <p id="roleLabel"></p>
+        <div id="userList">Loading users...</div>
+        <button class="secondary" id="closeAdmin">Close</button>
+    </div>
+</div>
+
+</body>
+</html>
