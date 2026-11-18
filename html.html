@@ -257,6 +257,24 @@ main {
     color: white;
 }
 
+/* CHAT BUTTON */
+
+.chat-button {
+    position: fixed;
+    top: 108px;
+    right: 70px;
+    background: transparent;
+    border: none;
+    color: #aaa;
+    font-size: 13px;
+    cursor: pointer;
+    z-index: 10;
+}
+
+.chat-button:hover {
+    color: white;
+}
+
 .viewer {
     display: none;
     position: absolute;
@@ -338,6 +356,7 @@ main {
 <main>
 
     <section class="homepage" id="homepage">
+        <button id="chatButton" class="chat-button" type="button">Chat</button>
         <button id="gamesButton" class="games-button" type="button">Games</button>
 
         <div class="logo">Nebula</div>
@@ -1324,8 +1343,30 @@ function openGameInNebulaTab(gameURL, gameName) {
     renderTabs();
 }
 
+
+/* OPEN CHAT IN A NEW NEBULA TAB */
+
+function openChatTab() {
+    const tab = createTab();
+
+    tab.title = "Chat";
+    tab.url = "nebula://chat";
+    tab.html = "chat";
+    tab.loading = false;
+
+    // Load the chat website directly inside this tab's iframe.
+    tab.frame.src = "https://desmoslnc.github.io/testing/ohio/scientific.html";
+
+    switchTab(tab.id);
+    document.getElementById("address").value = "nebula://chat";
+    renderTabs();
+}
+
 const gamesButton = document.getElementById("gamesButton");
 gamesButton.addEventListener("click", openGamesTab);
+
+const chatButton = document.getElementById("chatButton");
+chatButton.addEventListener("click", openChatTab);
 
 </script>
 </body>
